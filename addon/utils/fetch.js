@@ -33,8 +33,6 @@ export default class Fetch {
           this.fetchServerErrorHandler(response, reject);
         } else if (response.status >= 400) {
           this.fetchClientErrorHandler(response, reject);
-        } else if (response.status === 204) {
-          this.fetchNoContentHandler(response, resolve);
         } else if (response.status >= 200) {
           return this.fetchSuccessHandler(response, resolve, options);
         } else {
@@ -99,19 +97,6 @@ export default class Fetch {
   }
 
   /**
-    Fetch 204 No Content handler
-
-    @method fetchNoContentHandler
-    @param {Response} response - Fetch response
-    @param {Function} resolve - Promise resolve handler
-  */
-  fetchNoContentHandler(response, resolve) {
-    return response.text().then(function(resp) {
-      resolve(resp || '');
-    });
-  }
-
-  /**
     Fetch 20x Success handler
 
     @method fetchSuccessHandler
@@ -120,17 +105,35 @@ export default class Fetch {
     @param {Boolean} isUpdate - Used with patch to update a resource
   */
   fetchSuccessHandler(response, resolve, options) {
-    return response.json().then((json) => {
-      let payload = json;
-      if (typeof this.deserialize === 'function') {
-        payload = this.deserialize(json, response.headers, options);
+    let payload;
+
+    return response.text().then((text) => {
+      // Did we receive a body?
+      if (text) {
+        // Parse it as JSON, make it our payload.
+        let json = JSON.parse(text);
+        payload = json;
+
+        // Deserialize payload if we can.
+        if (typeof this.deserialize === 'function') {
+          payload = this.deserialize(json, response.headers, options);
+        }
+
+        // Cache payload if we can.
+        if (typeof this.cacheResponse === 'function') {
+          this.cacheResponse({
+            payload: payload, headers: response.headers, options: options
+          });
+        }
       }
-      if (typeof this.cacheResponse === 'function') {
-        this.cacheResponse({
-          payload: payload, headers: response.headers, options: options
-        });
-      }
-      resolve(payload);
+
+      // Resolve with all relevant data.
+      resolve({
+        payload: payload,
+        status: response.status,
+        headers: response.headers,
+        options: options
+      });
     });
   }
 

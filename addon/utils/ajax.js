@@ -78,11 +78,7 @@ export default class Ajax {
       @param {jqXHR} jqXHR
     */
     return function(json, textStatus, jqXHR) {
-      if (jqXHR.status === 204) {
-        this.ajaxNoContentHandler(json, textStatus, jqXHR, _resolve);
-      } else {
-        this.ajaxSuccessHandler(json, textStatus, jqXHR, _resolve, _options);
-      }
+      this.ajaxSuccessHandler(json, textStatus, jqXHR, _resolve, _options);
     }.bind(this);
   }
 
@@ -135,20 +131,6 @@ export default class Ajax {
   }
 
   /**
-    Ajax 204 No Content handler
-
-    @private
-    @method ajaxNoContentHandler
-    @param {Object} json - payload should be empty
-    @param {String} textStatus
-    @param {jqXHR} jqXHR
-    @param {Function} resolve - Promise resolve handler
-  */
-  ajaxNoContentHandler(json, textStatus, jqXHR, resolve) {
-    resolve(json || '');
-  }
-
-  /**
     Ajax 20x Success handler
 
     @private
@@ -162,15 +144,23 @@ export default class Ajax {
   ajaxSuccessHandler(json, textStatus, jqXHR, resolve, options) {
     let headers = this._getAjaxHeaders(jqXHR);
     let payload = json;
-    if (typeof this.deserialize === 'function') {
-      payload = this.deserialize(json, headers);
+    if (payload) {
+      if (typeof this.deserialize === 'function') {
+        payload = this.deserialize(json, headers, options);
+      }
+      if (typeof this.cacheResponse === 'function') {
+        this.cacheResponse({
+          payload: payload, headers: headers, options: options
+        });
+      }
     }
-    if (typeof this.cacheResponse === 'function') {
-      this.cacheResponse({
-        payload: payload, headers: headers, options: options
-      });
-    }
-    resolve(payload);
+
+    resolve({
+      payload: payload,
+      status: jqXHR.status,
+      headers: headers,
+      options: options
+    });
   }
 
   /**
